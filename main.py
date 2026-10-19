@@ -167,6 +167,36 @@ def search_prompt(prompts):
     print_matches(matches, "검색 결과가 없습니다.")
 
 
+# ---------- 기능: 상세 보기 / 즐겨찾기 ----------
+
+def show_detail(prompts):
+    prompt = select_prompt(prompts)
+    if prompt is None:
+        return
+    prompt["views"] += 1  # 상세 보기를 열 때마다 조회수(사용 횟수) 기록
+    print(f"\n제목: {prompt['title']}")
+    print(f"카테고리: {prompt['category']}")
+    print(f"즐겨찾기: {'예' if prompt['favorite'] else '아니오'}")
+    print(f"조회수: {prompt['views']}")
+    print(f"내용: {prompt['content']}")
+
+
+def toggle_favorite(prompts):
+    show_list(prompts)
+    prompt = select_prompt(prompts)
+    if prompt is None:
+        return
+    prompt["favorite"] = not prompt["favorite"]
+    state = "추가" if prompt["favorite"] else "해제"
+    print(f"'{prompt['title']}' 즐겨찾기를 {state}했습니다.")
+
+
+def show_favorites(prompts):
+    print("\n--- 즐겨찾기 ---")
+    matches = find_prompts(prompts, lambda p: p["favorite"])
+    print_matches(matches, "즐겨찾기한 프롬프트가 없습니다.")
+
+
 # ---------- 메뉴 ----------
 
 def show_menu(menu):
@@ -183,6 +213,9 @@ def main():
         ("2", "전체 목록", show_list),
         ("3", "카테고리별 조회", show_by_category),
         ("4", "키워드 검색", search_prompt),
+        ("5", "상세 보기", show_detail),
+        ("6", "즐겨찾기 추가/해제", toggle_favorite),
+        ("7", "즐겨찾기 목록", show_favorites),
     ]  # end menu
     actions = {key: func for key, _, func in menu}
 
