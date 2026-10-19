@@ -119,6 +119,54 @@ def show_list(prompts):
         print_prompt_line(number, prompt)
 
 
+# ---------- 기능: 카테고리 조회 / 검색 ----------
+
+def find_prompts(prompts, condition):
+    """condition(prompt)가 참인 항목을 (전체 목록 기준 번호, 프롬프트)로 반환."""
+    return [(i, p) for i, p in enumerate(prompts, 1) if condition(p)]
+
+
+def print_matches(matches, empty_message):
+    if not matches:
+        print(empty_message)
+        return
+    for number, prompt in matches:
+        print_prompt_line(number, prompt)
+
+
+def get_all_categories(prompts):
+    """CATEGORIES + 데이터에 실제 존재하는 직접 입력 카테고리(중복 제거, 순서 유지)."""
+    names = list(CATEGORIES)
+    for prompt in prompts:
+        if prompt["category"] not in names:
+            names.append(prompt["category"])
+    return names
+
+
+def show_by_category(prompts):
+    names = get_all_categories(prompts)
+    for i, name in enumerate(names, 1):
+        print(f"  {i}. {name}")
+    number = input_number("조회할 카테고리 번호: ", 1, len(names))
+    if number is None:
+        return
+    target = names[number - 1]
+    print(f"\n--- [{target}] ---")
+    matches = find_prompts(prompts, lambda p: p["category"] == target)
+    print_matches(matches, "해당 카테고리의 프롬프트가 없습니다.")
+
+
+def search_prompt(prompts):
+    keyword = input_non_empty("검색어: ").lower()
+    # 제목 또는(or) 내용에 포함되면 검색 결과. 대소문자는 구분하지 않는다.
+    matches = find_prompts(
+        prompts,
+        lambda p: keyword in p["title"].lower() or keyword in p["content"].lower(),
+    )
+    print(f"\n--- '{keyword}' 검색 결과 ---")
+    print_matches(matches, "검색 결과가 없습니다.")
+
+
 # ---------- 메뉴 ----------
 
 def show_menu(menu):
@@ -133,6 +181,8 @@ def main():
     menu = [
         ("1", "프롬프트 추가", add_prompt),
         ("2", "전체 목록", show_list),
+        ("3", "카테고리별 조회", show_by_category),
+        ("4", "키워드 검색", search_prompt),
     ]  # end menu
     actions = {key: func for key, _, func in menu}
 
