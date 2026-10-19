@@ -277,6 +277,53 @@ def export_markdown(prompts):
         print(f"{path} ({len(items)}개)")
 
 
+# ---------- 보너스 2: 수정 / 삭제 / 조회수 Top ----------
+
+def edit_prompt(prompts):
+    show_list(prompts)
+    prompt = select_prompt(prompts)
+    if prompt is None:
+        return
+    print("(그대로 두려면 Enter)")
+    title = input(f"제목 [{prompt['title']}]: ").strip()
+    content = input(f"내용 [{prompt['content']}]: ").strip()
+    change_category = input(f"카테고리 [{prompt['category']}] 변경? (y/N): ").strip().lower()
+    category = choose_category() if change_category == "y" else prompt["category"]
+
+    new_title = title or prompt["title"]
+    duplicate = find_duplicate(prompts, new_title, category)
+    if duplicate is not None and duplicate is not prompt:
+        print("같은 카테고리에 같은 제목이 있어 수정할 수 없습니다.")
+        return
+    prompt.update(title=new_title, content=content or prompt["content"], category=category)
+    print("수정되었습니다.")
+
+
+def delete_prompt(prompts):
+    show_list(prompts)
+    prompt = select_prompt(prompts)
+    if prompt is None:
+        return
+    if input(f"'{prompt['title']}'을(를) 삭제할까요? (y/N): ").strip().lower() != "y":
+        print("삭제를 취소했습니다.")
+        return
+    prompts.remove(prompt)
+    print("삭제되었습니다.")
+
+
+def show_top(prompts):
+    """조회수 내림차순 Top 5 (조회수가 0인 항목은 제외)."""
+    viewed = [(i, p) for i, p in enumerate(prompts, 1) if p["views"] > 0]
+    viewed.sort(key=lambda item: item[1]["views"], reverse=True)  # 동률은 기존 순서 유지
+    print("\n--- 조회수 Top 5 ---")
+    if not viewed:
+        print("아직 조회 기록이 없습니다. 상세 보기를 먼저 이용해보세요.")
+        return
+    for rank, (number, prompt) in enumerate(viewed[:5], 1):
+        print(f"{rank}위 (조회 {prompt['views']}회) ", end="")
+        print_prompt_line(number, prompt)
+
+
 # ---------- 메뉴 ----------
 
 def show_menu(menu):
@@ -300,7 +347,11 @@ def main():
         ("11", "JSON 저장", save_menu),
         ("12", "JSON 불러오기", load_menu),
         ("13", "카테고리별 Markdown 내보내기", export_markdown),
+        ("8", "프롬프트 수정", edit_prompt),
+        ("9", "프롬프트 삭제", delete_prompt),
+        ("10", "조회수 Top 목록", show_top),
     ]  # end menu
+    menu.sort(key=lambda item: int(item[0]))  # 번호순으로 표시
     actions = {key: func for key, _, func in menu}
 
     while True:
