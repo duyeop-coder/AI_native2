@@ -19,6 +19,10 @@ DEFAULT_PROMPTS = [
 ]
 
 
+# 실행 후 자동 저장할 메뉴 번호 (추가·상세 보기[조회수]·즐겨찾기·수정·삭제)
+AUTO_SAVE_KEYS = {"1", "5", "6", "8", "9"}
+
+
 # ---------- 입력 도우미 (입력 검증은 모두 여기서 처리) ----------
 
 def input_non_empty(message):
@@ -197,6 +201,82 @@ def show_favorites(prompts):
     print_matches(matches, "즐겨찾기한 프롬프트가 없습니다.")
 
 
+# ---------- 보너스 1: JSON 저장/불러오기, Markdown 내보내기 ----------
+
+def normalize(raw):
+    """파일에서 읽은 항목에 누락된 필드를 기본값으로 채워 안전한 dict로 만든다."""
+    return {
+        "title": str(raw["title"]),
+        "content": str(raw["content"]),
+        "category": str(raw.get("category", "기타")),
+        "favorite": bool(raw.get("favorite", False)),
+        "views": int(raw.get("views", 0)),
+    }
+
+
+def save_prompts(prompts, path=None):
+    path = path or DATA_FILE
+    folder = os.path.dirname(path)
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(prompts, f, ensure_ascii=False, indent=2)
+
+
+def load_prompts(path=None):
+    """JSON을 읽어 리스트로 반환. 파일이 없거나 깨졌으면 None."""
+    path = path or DATA_FILE
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return [normalize(item) for item in json.load(f)]
+    except (OSError, ValueError, KeyError, TypeError):
+        print(f"'{path}' 파일을 읽을 수 없습니다. (형식 오류)")
+        try:
+            os.replace(path, path + ".bak")  # 자동 저장이 원본을 덮어쓰지 않도록 백업
+            print(f"원본을 '{path}.bak'으로 보관했습니다.")
+        except OSError:
+            pass
+        return None
+
+
+def save_menu(prompts):
+    save_prompts(prompts)
+    print(f"{len(prompts)}개의 프롬프트를 '{DATA_FILE}'에 저장했습니다.")
+
+
+def load_menu(prompts):
+    loaded = load_prompts()
+    if loaded is None:
+        print("불러올 데이터가 없습니다.")
+        return
+    prompts[:] = loaded  # 같은 리스트 객체를 유지한 채 내용만 교체
+    print(f"{len(prompts)}개의 프롬프트를 불러왔습니다.")
+
+
+def export_markdown(prompts):
+    """카테고리별로 exports/<카테고리>.md 파일을 만든다."""
+    if not prompts:
+        print("내보낼 프롬프트가 없습니다.")
+        return
+    os.makedirs(EXPORT_DIR, exist_ok=True)
+    for category in get_all_categories(prompts):
+        items = [p for p in prompts if p["category"] == category]
+        if not items:
+            continue
+        lines = [f"# {category}", ""]
+        for p in items:
+            star = " ★" if p["favorite"] else ""
+            lines += [f"## {p['title']}{star}", "", p["content"], "",
+                      f"- 조회수: {p['views']}", ""]
+        safe = "".join(c if c.isalnum() or c in "-_ " else "_" for c in category)
+        path = os.path.join(EXPORT_DIR, f"{safe}.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        print(f"{path} ({len(items)}개)")
+
+
 # ---------- 메뉴 ----------
 
 def show_menu(menu):
@@ -207,7 +287,8 @@ def show_menu(menu):
 
 
 def main():
-    prompts = [dict(p) for p in DEFAULT_PROMPTS]
+    # 저장된 파일이 있으면 불러오고, 없으면 기본 데이터로 시작한다.
+    prompts = load_prompts() or [dict(p) for p in DEFAULT_PROMPTS]
     menu = [
         ("1", "프롬프트 추가", add_prompt),
         ("2", "전체 목록", show_list),
@@ -216,6 +297,9 @@ def main():
         ("5", "상세 보기", show_detail),
         ("6", "즐겨찾기 추가/해제", toggle_favorite),
         ("7", "즐겨찾기 목록", show_favorites),
+        ("11", "JSON 저장", save_menu),
+        ("12", "JSON 불러오기", load_menu),
+        ("13", "카테고리별 Markdown 내보내기", export_markdown),
     ]  # end menu
     actions = {key: func for key, _, func in menu}
 
@@ -223,10 +307,13 @@ def main():
         show_menu(menu)
         choice = input("메뉴 번호를 입력하세요: ").strip()
         if choice == "0":
-            print("프로그램을 종료합니다.")
+            save_prompts(prompts)  # 종료 시 자동 저장
+            print("저장 후 프로그램을 종료합니다.")
             break
         if choice in actions:
             actions[choice](prompts)
+            if choice in AUTO_SAVE_KEYS:
+                save_prompts(prompts)  # 데이터가 바뀌는 기능은 실행 직후 자동 저장
         else:
             print(f"잘못된 입력입니다. 메뉴 번호(0~{len(menu)})를 입력해주세요.")
 
